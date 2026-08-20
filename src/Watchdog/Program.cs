@@ -31,7 +31,7 @@ Console.WriteLine($"[watchdog] the app did not exit within {timeout.TotalSeconds
 PrintStacks(child.Id);
 
 // entireProcessTree: false on purpose: it's the API under investigation and using it here
-// could hang the watchdog itself. The orphaned '/bin/sleep 60' grandchild exits on its own.
+// could hang the watchdog itself. The orphaned '/bin/sleep 600' descendants exit on their own.
 Console.WriteLine("[watchdog] killing the hung app");
 child.Kill(entireProcessTree: false);
 
