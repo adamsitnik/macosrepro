@@ -11,7 +11,7 @@ macOS machines offered by GitHub Actions.
 | [`src/Watchdog`](src/Watchdog) | Starts the given app, waits 10 seconds for it to exit and if it does not, attaches `lldb` to it and prints the stacks of all its threads to the standard output. |
 
 The [`macOS repro`](.github/workflows/macos-repro.yml) workflow runs only on `macos-latest`, installs the latest
-.NET 11 RC SDK and runs `ProcessKillRepro` under the `Watchdog`.
+.NET 11 SDK and runs `ProcessKillRepro` under the `Watchdog`.
 
 ## Running it locally
 

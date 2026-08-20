@@ -19,11 +19,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install the latest .NET 11 RC SDK
+      - name: Install the latest .NET 11 SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '11.0.x'
-          dotnet-quality: 'rc'
+          # 'rc' is not a valid quality, RC builds are published with the 'preview' quality
+          dotnet-quality: 'preview'
 
       - name: Print SDK info
         run: dotnet --info
