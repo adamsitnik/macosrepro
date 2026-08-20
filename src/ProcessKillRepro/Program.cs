@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Microsoft.DotNet.RemoteExecutor;
 
 // Repro for https://github.com/dotnet/runtime/issues/131944:
@@ -29,6 +30,18 @@ static void KillProcessTree(int index)
 
     using RemoteInvokeHandle handle = RemoteExecutor.Invoke(static () =>
     {
+        // mimic what dotnet-watch does: register a SIGTERM handler that exits gracefully.
+        // See https://github.com/dotnet/sdk/blob/7053edd97335c939e3d7692b4aea58e7c9c2bc6d/src/Dotnet.Watch/HotReloadAgent.Host/StartupHook.cs#L137-L145
+        using PosixSignalRegistration signalRegistration = PosixSignalRegistration.Create(PosixSignal.SIGTERM, static context =>
+        {
+            Console.Error.WriteLine($"[child] SIGTERM received. Cancel={context.Cancel}");
+
+            if (!context.Cancel)
+            {
+                Environment.Exit(0);
+            }
+        });
+
         ProcessStartInfo grandChildStartInfo = new ProcessStartInfo("/bin/sleep");
         grandChildStartInfo.ArgumentList.Add("600");
 
