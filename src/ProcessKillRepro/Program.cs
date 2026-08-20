@@ -2,9 +2,12 @@ using System.Diagnostics;
 
 // Repro for https://github.com/dotnet/runtime/issues/131944:
 // start a sleeping child process, kill the entire process tree and wait for the child to exit.
-// A single process is not enough to reproduce the hang, so it's done 10 times in parallel.
+// A single process is not enough to reproduce the hang, so it's done 10 times in a row.
 
-Parallel.For(0, 10, KillSleepingProcess);
+for (int i = 0; i < 10; i++)
+{
+    KillSleepingProcess(i);
+}
 
 return 0;
 
