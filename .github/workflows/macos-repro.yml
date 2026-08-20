@@ -23,8 +23,8 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '11.0.x'
-          # 'rc' is not a valid quality, RC builds are published with the 'preview' quality
-          dotnet-quality: 'preview'
+          # 'rc' is not a valid quality, use 'daily' to always get the latest .NET 11 build
+          dotnet-quality: 'daily'
 
       - name: Print SDK info
         run: dotnet --info
