@@ -7,7 +7,7 @@ macOS machines offered by GitHub Actions.
 
 | Project | Description |
 | --- | --- |
-| [`src/ProcessKillRepro`](src/ProcessKillRepro) | Starts `/bin/sleep 60` with `Process.Start`, calls `Process.Kill(entireProcessTree: true)`, waits for the sleeping child to exit, reports its exit code and exits. |
+| [`src/ProcessKillRepro`](src/ProcessKillRepro) | Runs the following 10 times in parallel (`Parallel.For`): starts `/bin/sleep 60` with `Process.Start`, calls `Process.Kill(entireProcessTree: true)`, waits for the sleeping child to exit and reports its exit code. |
 | [`src/Watchdog`](src/Watchdog) | Starts the given app, waits 10 seconds for it to exit and if it does not, attaches `lldb` to it and prints the stacks of all its threads to the standard output. |
 
 The [`macOS repro`](.github/workflows/macos-repro.yml) workflow runs only on `macos-latest`, installs the latest
