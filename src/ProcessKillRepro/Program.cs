@@ -1,11 +1,10 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using Microsoft.DotNet.RemoteExecutor;
 
-// Repro for https://github.com/dotnet/runtime/issues/131944:
-// build a process tree (this app -> RemoteExecutor child -> '/bin/sleep 600' grandchild),
-// kill the entire tree and wait for the child to exit.
-// A single sleeping process is not enough to reproduce the hang, so a tree is killed 10 times in a row.
+const int TreeCount = 8;
+const int Iterations = 30;
+TimeSpan killTimeout = TimeSpan.FromSeconds(60);
+const int WaitInMilliseconds = 60_000;
 
 if (!RemoteExecutor.IsSupported)
 {
@@ -13,55 +12,57 @@ if (!RemoteExecutor.IsSupported)
     return 2;
 }
 
-for (int i = 0; i < 10; i++)
+for (int iteration = 0; iteration < Iterations; iteration++)
 {
-    KillProcessTree(i);
+    RemoteInvokeHandle[] handles = new RemoteInvokeHandle[TreeCount];
+    Process[] roots = new Process[TreeCount];
+
+    try
+    {
+        for (int i = 0; i < TreeCount; i++)
+        {
+            RemoteInvokeOptions options = new RemoteInvokeOptions { CheckExitCode = false };
+            RemoteInvokeHandle handle = RemoteExecutor.Invoke(static () =>
+            {
+                using Process grandChild = Process.Start("/bin/sleep", "1000")!;
+                Thread.Sleep(Timeout.Infinite);
+            }, options);
+
+            handles[i] = handle;
+            roots[i] = handle.Process;
+        }
+
+        Thread.Sleep(500);
+
+        Task[] tasks = new Task[TreeCount];
+        for (int i = 0; i < TreeCount; i++)
+        {
+            Process root = roots[i];
+            tasks[i] = Task.Run(() => root.Kill(entireProcessTree: true));
+        }
+
+        bool completed = Task.WaitAll(tasks, killTimeout);
+        if (!completed)
+        {
+            throw new Exception($"Kill(entireProcessTree: true) hung on iteration {iteration}.");
+        }
+
+        foreach (Process root in roots)
+        {
+            bool exited = root.WaitForExit(WaitInMilliseconds);
+            if (!exited)
+            {
+                throw new Exception($"Root process {root.Id} did not exit on iteration {iteration}.");
+            }
+        }
+    }
+    finally
+    {
+        foreach (RemoteInvokeHandle handle in handles)
+        {
+            handle?.Dispose();
+        }
+    }
 }
 
 return 0;
-
-static void KillProcessTree(int index)
-{
-    RemoteInvokeOptions options = new RemoteInvokeOptions { CheckExitCode = false };
-    // the child writes the pid of the grandchild to the standard output and
-    // blocks on reading the standard input until it gets killed.
-    options.StartInfo.RedirectStandardOutput = true;
-    options.StartInfo.RedirectStandardInput = true;
-
-    using RemoteInvokeHandle handle = RemoteExecutor.Invoke(static () =>
-    {
-        // mimic what dotnet-watch does: register a SIGTERM handler that exits gracefully.
-        // See https://github.com/dotnet/sdk/blob/7053edd97335c939e3d7692b4aea58e7c9c2bc6d/src/Dotnet.Watch/HotReloadAgent.Host/StartupHook.cs#L137-L145
-        using PosixSignalRegistration signalRegistration = PosixSignalRegistration.Create(PosixSignal.SIGTERM, static context =>
-        {
-            Console.Error.WriteLine($"[child] SIGTERM received. Cancel={context.Cancel}");
-
-            if (!context.Cancel)
-            {
-                Environment.Exit(0);
-            }
-        });
-
-        ProcessStartInfo grandChildStartInfo = new ProcessStartInfo("/bin/sleep");
-        grandChildStartInfo.ArgumentList.Add("600");
-
-        using Process grandChild = Process.Start(grandChildStartInfo)!;
-        Console.WriteLine(grandChild.Id);
-
-        // this blocks the child until the parent kills the entire process tree
-        _ = Console.ReadLine();
-    }, options);
-
-    Process child = handle.Process;
-    // wait for the grandchild to get started, so the whole tree exists before it gets killed
-    string? grandChildId = child.StandardOutput.ReadLine();
-    Console.WriteLine($"[repro {index}] child pid {child.Id} started '/bin/sleep 600' with pid {grandChildId}");
-
-    Stopwatch stopwatch = Stopwatch.StartNew();
-
-    child.Kill(entireProcessTree: true);
-    Console.WriteLine($"[repro {index}] Kill(entireProcessTree: true) returned after {stopwatch.ElapsedMilliseconds} ms");
-
-    child.WaitForExit();
-    Console.WriteLine($"[repro {index}] child exited with code {child.ExitCode} after {stopwatch.ElapsedMilliseconds} ms");
-}
